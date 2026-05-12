@@ -12,12 +12,7 @@ This file is part of the submission. Complete it after you have tested and deplo
 ## 1. Project Summary
 
 **Short description of your app:**  
-_Write 2-4 sentences explaining what the app does._
-
-Example topics:
-- What kind of user input does the app accept?
-- What does the regression model predict?
-- What is the role of the LLM in your app?
+This app accepts apartment requests in natural language (German) and estimates the monthly rent for an apartment in Switzerland. The user describes the number of rooms, floor area, and location – an LLM (OpenAI) extracts structured parameters from the text. A pre-trained Random Forest regression model calculates the rent estimate based on apartment and municipality characteristics. Finally, a second LLM call explains the result in plain language, including an uncertainty note.
 
 ---
 
@@ -27,15 +22,13 @@ List the main files you worked with.
 
 | File | Purpose |
 |------|---------|
-| `ai_applications_exercise2.ipynb` | Notebook work and testing |
-| `app_student.py` | Student implementation |
-| `app.py` | Final deployable app |
-| `random_forest_regression.pkl` | Saved regression model |
-| `bfs_municipality_and_tax_data.csv` | Municipality features used for prediction |
-| `requirements.txt` | Python dependencies |
-| `documentation.md` | Written documentation for the submission |
-
-Add or remove rows if needed.
+| `ai_applications_exercise2.ipynb` | Notebook: Development and testing of all functions |
+| `app_student.py` | Student implementation with all TODOs filled in |
+| `app.py` | Final app for deployment (copy of app_student.py) |
+| `random_forest_regression.pkl` | Pre-trained Random Forest regression model |
+| `bfs_municipality_and_tax_data.csv` | Municipality data (population, density, foreign resident share, employees, tax income) |
+| `requirements.txt` | Python dependencies: openai, scikit-learn, numpy, pandas |
+| `documentation.md` | This documentation |
 
 ---
 
@@ -47,23 +40,21 @@ Add or remove rows if needed.
 `random_forest_regression.pkl`
 
 **What does the model predict?**  
-_Describe the target in 1-2 sentences._
+The model estimates the monthly rent (CHF) of an apartment based on apartment characteristics and municipality statistics.
 
-**Which input features are used for prediction?**  
-_List the seven features in the correct order._
+**Which input features are used for prediction?**
 
-Example format:
-1. `rooms`
-2. `area_m2`
-3. `pop`
-4. `pop_dens`
-5. `frg_pct`
-6. `emp`
-7. `tax_income`
+1. `rooms` – Number of rooms (from the user)
+2. `area_m2` – Living area in m² (from the user)
+3. `pop` – Municipality population (from CSV)
+4. `pop_dens` – Population density (from CSV)
+5. `frg_pct` – Foreign resident share in % (from CSV)
+6. `emp` – Number of employees (from CSV)
+7. `tax_income` – Taxable income (from CSV)
 
 ### 3.2 Prediction Logic
 
-_Explain briefly how you built the model input from user data and municipality data._
+The user provides `rooms`, `area_m2`, and `town`. Via town matching (exact match or contains-match) the municipality is identified in the CSV. The remaining 5 features (`pop`, `pop_dens`, `frg_pct`, `emp`, `tax_income`) are read from the corresponding row. All 7 values are passed as a NumPy array to `model.predict()`.
 
 ---
 
@@ -71,23 +62,22 @@ _Explain briefly how you built the model input from user data and municipality d
 
 ### 4.1 Goal
 
-_Explain what the LLM had to extract from the user text._
+The LLM extracts three structured values from a free-text input in German: number of rooms (`rooms`), living area (`area_m2`), and municipality name (`town`).
 
 ### 4.2 Prompt Design
 
-Paste or summarize the prompt idea you used.
+The prompt uses a system instruction with the following elements:
 
-Helpful points to mention:
-- Did you use a system/developer instruction?
-- Did you require strict JSON?
-- Which keys did you require?
-- Did you tell the model to respond in German?
+- Role: Specialized assistant for Swiss apartment search
+- Strict JSON output required, no additional text
+- Exactly three required keys defined: `rooms`, `area_m2`, `town`
+- Numeric values required for `rooms` and `area_m2`
+- A concrete example input/output pair provided
+- `temperature=0` for consistent results
 
 ### 4.3 Expected Output Format
 
 Document the ideal extraction output.
-
-Example:
 
 ```json
 {"rooms": 3.5, "area_m2": 85, "town": "Winterthur"}
@@ -95,7 +85,10 @@ Example:
 
 ### 4.4 Validation
 
-_Explain how you checked that the extracted values were usable in Python._
+Validation is performed in two steps:
+
+1. `parse_json_response()` checks whether the LLM returns valid JSON with all required keys.
+2. `match_town()` checks whether the extracted place name exists in the dataset (exact or via contains-match). If not, a `ValueError` is raised.
 
 ---
 
@@ -103,44 +96,35 @@ _Explain how you checked that the extracted values were usable in Python._
 
 ### 5.1 Goal
 
-_Explain what the second LLM step should do._
-
-Important:
-- The LLM should explain the prediction.
-- The LLM should not calculate a new price.
+The second LLM call explains the already-calculated rent estimate in plain language. The LLM does not calculate a new price – it receives the value as input and formulates an understandable explanation.
 
 ### 5.2 Prompt Design
 
-_Describe how you prompted the LLM to produce the explanation._
-
-Helpful points:
-- structured preferences included?
-- prediction value included?
-- German output required?
-- uncertainty note required?
-- JSON output required?
+- Role: Helpful housing advisor in Switzerland
+- Receives the apartment preferences (JSON) and the calculated estimate (CHF)
+- Should respond with 2–3 sentences in German, explaining the estimateß
+- Must mention an uncertainty or limitation
+- Must not invent a new price
+- Strict JSON output with key `answer`
+- A concrete example output provided
 
 ### 5.3 Expected Output Format
 
-Example:
-
 ```json
-{"answer": "Für eine 3.5-Zimmer-Wohnung in Winterthur schätzt das Modell rund 2800 CHF pro Monat. Eine Unsicherheit ist, dass Zustand und Mikrolage nicht direkt im Modell enthalten sind."}
+{"answer": "Für eine 3.5-Zimmer-Wohnung in Winterthur schätzt das Modell rund 2117 CHF pro Monat. Die Schätzung basiert auf Wohnfläche und Gemeindemerkmalen. Eine Unsicherheit ist, dass Zustand, Mikrolage und Ausstattung nicht im Modell enthalten sind."}
 ```
 
 ---
 
 ## 6. End-to-End Pipeline
 
-Describe the full pipeline in your own words.
-
-Suggested order:
-1. User enters a German apartment request.
-2. LLM extracts `rooms`, `area_m2`, and `town`.
-3. Python validates the extracted values.
-4. The regression model predicts the monthly rent.
-5. The LLM generates a short explanation.
-6. The app returns structured input, prediction, and final answer.
+1. The user enters an apartment request in German (e.g. "Ich suche eine 3.5-Zimmer-Wohnung mit 85 m2 in Winterthur.")
+2. `extract_preferences()` sends the text to the LLM, which extracts `rooms`, `area_m2`, and `town` as JSON.
+3. `parse_json_response()` validates the JSON and checks the required keys.
+4. `match_town()` matches the place name against the dataset.
+5. `predict_apartment_price()` fetches the municipality features from the CSV and calculates the rent via the Random Forest model.
+6. `generate_explanation()` sends preferences + estimate to the LLM, which generates an explanation with an uncertainty note.
+7. The Gradio UI displays: extracted JSON, estimated monthly rent (CHF), and explanation text.
 
 ---
 
@@ -150,29 +134,25 @@ Document at least 3 test inputs.
 
 | Test Input | Extracted Output Correct? | Prediction Returned? | Explanation Returned? | Notes |
 |------------|----------------------------|----------------------|-----------------------|-------|
-| _Example:_ `Ich suche eine 3.5-Zimmer-Wohnung mit 85 m2 in Winterthur.` | Yes / No | Yes / No | Yes / No | _What happened?_ |
-|  |  |  |  |  |
-|  |  |  |  |  |
-
-Use German test prompts.
+| "Ich suche eine 3.5-Zimmer-Wohnung mit 85 m2 in Winterthur." | Yes | Yes (2117.32 CHF) | Yes | All values correctly extracted and explained |
+| "Ich suche 2 Zimmer und etwa 55 m2 in Kloten." | Yes | Yes (1881.22 CHF) | Yes | Correctly recognized even without "Zimmer-Wohnung" phrasing |
+| "Ich brauche eine 4-Zimmer-Wohnung mit rund 110 m2 in Zürich." | Yes | Yes (4028.79 CHF) | Yes | Zürich correctly matched, higher price is plausible |
 
 ---
 
 ## 8. Errors and Problems
 
-Describe problems you encountered.
+**Problem 1:** `random_forest_regression.pkl` was missing from the repository.  
+**Cause:** The file originated from an earlier exercise and was not included in the GitHub repo.  
+**Fix:** Manually copied the model file from the earlier project into the project folder.
 
-Possible topics:
-- invalid town names
-- wrong JSON from the LLM
-- missing API key
-- model file not found
-- deployment issues on Hugging Face
+**Problem 2:** `ModuleNotFoundError: No module named 'openai'` during deployment.  
+**Cause:** `requirements.txt` was initially not uploaded to HuggingFace.  
+**Fix:** Uploaded `requirements.txt` without fixed version numbers.
 
-For each issue, write:
-- **Problem**
-- **Cause**
-- **Fix**
+**Problem 3:** Sklearn warning "X does not have valid feature names".  
+**Cause:** The model was trained with a DataFrame (with column names), but prediction uses a NumPy array.  
+**Fix:** The warning is harmless and does not affect results – ignored.
 
 ---
 
@@ -182,60 +162,37 @@ Document your Hugging Face deployment here.
 
 ### 9.1 Files included
 
-_List the files that were uploaded._
+- `app.py`
+- `random_forest_regression.pkl`
+- `bfs_municipality_and_tax_data.csv`
+- `requirements.txt`
+- `documentation.md`
+- `README.md`
 
 ### 9.2 Secrets / Environment Variables
 
-_List which secret names were required._
-
-Example:
-- `OPENAI_API_KEY`
-- `OPENAI_MODEL` (optional)
+- `LLM_API_KEY` – OpenAI API Key (as HuggingFace Secret)
+- `LLM_MODEL` – `gpt-5.4-mini` (as HuggingFace Secret)
 
 ### 9.3 Deployment Result
 
-_Did the Space run successfully? What worked? What failed?_
+The Space runs successfully on HuggingFace Spaces with the Gradio SDK. All functions (extraction, prediction, explanation) work correctly.
 
 ### 9.4 Screenshots
 
 Add **2 screenshots** from your running app here.
 
-Requirements for the screenshots:
-- use 2 different German example prompts
-- show the extracted JSON
-- show the predicted rent
-- show the final explanation
-
-You can insert them like this:
-
-```md
-![Example 1](screenshot1.png)
-![Example 2](screenshot2.png)
-```
-
-Write 1-2 short sentences below each screenshot explaining what happened in the example.
+![Example 1](Test1.png)
+![Example 2](Test2.png)
 
 ---
 
 ## 10. Reflection
 
-Write 3-5 sentences about the exercise.
-
-Possible reflection questions:
-- What worked well in the combination of regression model + LLM?
-- Where is the system fragile?
-- Why is German input important in this exercise?
-- What important apartment information is still missing from the model?
-- What would you improve next?
+The combination of the Random Forest model and LLM works well: the model provides a consistent numerical estimate, while the LLM makes the user interaction natural and easy to understand. The biggest weakness is the town matching – unusual spellings or places outside the dataset lead to errors. German prompts are important because the dataset contains Swiss place names and the LLM only extracts them correctly when the input and dataset language match. The model lacks important features such as apartment condition, micro-location, year of construction, and furnishing standard. As a next step, I would add an autocomplete function for place names and additional features to the model.
 
 ---
 
 ## 11. Responsible Use Note
 
-Write 2-4 sentences about limitations and responsible use.
-
-Possible topics:
-- The prediction is only an estimate.
-- The model uses limited structured features.
-- The LLM may extract values incorrectly.
-- Real rental prices depend on additional factors not included here.
+The rent estimate is only a guideline and must not be understood as a binding price quote. The model exclusively uses structured municipality characteristics – individual factors such as condition, floor, renovation, furnishings, and exact location are missing. The LLM can occasionally misinterpret inputs, especially with ambiguous or incomplete text. Real rental decisions should always be based on a professional assessment.
