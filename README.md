@@ -22,7 +22,7 @@ Because the data is Swiss, students should write prompts in German so town names
 
 ## Student workflow
 
-- Build logic in notebook (`week2/ai_applications_exercise2.ipynb`)
+- Build logic in notebook (`ai_applications_exercise2.ipynb`)
 - Reuse the provided saved model file `random_forest_regression.pkl`
 - Implement TODOs in `app_student.py` (any LLM provider is allowed)
 - Promote finished code to `app.py` for deployment
